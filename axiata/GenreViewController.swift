@@ -1,34 +1,49 @@
 //
-//  ViewController.swift
+//  GenreViewController.swift
 //  axiata
 //
 //  Created by docotel on 15/10/20.
 //  Copyright © 2020 Affandy Murad. All rights reserved.
 //
 
-
+import Foundation
 import UIKit
 
-
-class genreViewCell: UITableViewCell{
+class movieViewCell: UITableViewCell{
     
-    @IBOutlet weak var genre: UILabel!
+    @IBOutlet weak var ivPoster: UrlPhotoHandling!
+    
+    @IBOutlet weak var title: UILabel!
+    
+    @IBOutlet weak var date: UILabel!
+    
+    @IBOutlet weak var language: UILabel!
     
 }
 
-class ViewController: BaseViewController<ViewPresenter>, MainDelegates, UITableViewDelegate, UITableViewDataSource {
+class GenreViewController: BaseViewController<GenrePresenter>, GenreDelegates, UITableViewDelegate, UITableViewDataSource {
 
-    
-    var genreList = Array<Genre>()
-    
     @IBOutlet weak var tabelView: UITableView!
+    
     private let refreshControl = UIRefreshControl()
     
-    func loadGenreList(genres: [Genre]) {
-        self.genreList = genres
+    var movieList = Array<MovieList>()
+    var page = 1
+    var region = "US"
+    var genre = 0
+    var genreName = ""
+    var isFinish = false
+    
+    func loadMovieList(movies: [MovieList]) {
+        if (movies.count != 0) {
+            movieList.append(contentsOf: movies)
+            self.isFinish = false
+        } else {
+            self.isFinish = true
+        }
         DispatchQueue.main.async {
             self.taskDidFinish()
-            self.tabelView.reloadData()
+              self.tabelView.reloadData()
         }
     }
     
@@ -36,13 +51,13 @@ class ViewController: BaseViewController<ViewPresenter>, MainDelegates, UITableV
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do any additional setup after loading the view.
-        self.title = "Genre"
+        self.title = self.genreName
         tabelView.delegate = self
         tabelView.dataSource = self
         
-        presenter = ViewPresenter(view: self)
+        presenter = GenrePresenter(view: self)
         
-        presenter.getGenreList()
+        presenter.getMovieList(region: self.region, genre: String(self.genre), pages: String(self.page))
         
         if #available(iOS 10.0, *) {
             tabelView.refreshControl = refreshControl
@@ -55,9 +70,10 @@ class ViewController: BaseViewController<ViewPresenter>, MainDelegates, UITableV
     }
     
     @objc private func refreshInfo(_ sender: Any) {
-        self.genreList.removeAll()
-         self.tabelView.reloadData()
-                presenter.getGenreList()
+        movieList.removeAll()
+        tabelView.reloadData()
+        self.page = 1
+        presenter.getMovieList(region: self.region, genre: String(self.genre), pages: String(self.page))
        }
 
     func taskDidBegin() {
@@ -104,26 +120,49 @@ class ViewController: BaseViewController<ViewPresenter>, MainDelegates, UITableV
     }
     
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        genreList.count
+        movieList.count
     }
     
+    
+    
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "genreCell", for: indexPath) as! genreViewCell
-        cell.genre.text = genreList[indexPath.row].name
+        let cell = tableView.dequeueReusableCell(withIdentifier: "movieCell", for: indexPath) as! movieViewCell
+        cell.title.text = movieList[indexPath.row].title
         
+        let img = "http://image.tmdb.org/t/p/w500\(movieList[indexPath.row].poster_path ?? "")"
+        let name = movieList[indexPath.row].original_title
+        cell.ivPoster.loadImageUsingUrlString(img, kata: name)
+        
+        cell.date.text = Date.convertDateString(string: movieList[indexPath.row].release_date)
+        
+        let lang = Locale.current.localizedString(forLanguageCode: movieList[indexPath.row].original_language)
+        cell.language.text = lang
+        
+        loadMore(indexPath: indexPath)
         
         return cell
     }
     
-    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        tableView.deselectRow(at: indexPath as IndexPath, animated: true)
-        let baris = genreList[indexPath.row]
-        let storyboard : UIStoryboard = UIStoryboard(name: "Main", bundle: nil)
-        let vc : GenreViewController = storyboard.instantiateViewController(withIdentifier: "GenreController") as! GenreViewController
-        vc.genre = baris.id
-        vc.genreName = baris.name
-        self.navigationController?.pushViewController(vc, animated: true)
+    private func loadMore(indexPath: IndexPath){
+        if (indexPath.row == movieList.count - 1) && (!isFinish){
+            self.page += 1
+            presenter.getMovieList(region: self.region, genre: String(self.genre), pages: String(self.page))
+        }
     }
+    
+        func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+            self.tabelView.deselectRow(at: indexPath, animated: true)
+            let baris = movieList[indexPath.row]
+            let storyboard : UIStoryboard = UIStoryboard(name: "Main", bundle: nil)
+            let vc : DetailViewController = storyboard.instantiateViewController(withIdentifier: "DetailController") as! DetailViewController
+
+            vc.movieId = baris.id
+            vc.movieName = baris.title
+            vc.overviewText = baris.overview
+            vc.posterPath = baris.poster_path ?? ""
+            self.navigationController?.pushViewController(vc, animated: true)
+        }
 
 }
+
 
